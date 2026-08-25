@@ -5,8 +5,8 @@ import sys
 import winreg
 from datetime import date
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QEasingCurve, QPropertyAnimation, QTimer, Qt, QPoint
+from PySide6.QtGui import QAction, QColor, QFont, QFontMetrics, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QComboBox, QDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMenu, QMessageBox, QPushButton, QScrollArea, QSizePolicy,
@@ -20,6 +20,13 @@ DATA_FILE = os.path.join(APP_DIR, "todos.json")
 SETTINGS_FILE = os.path.join(APP_DIR, "settings.json")
 WIDTH, HEIGHT = 400, 800
 
+def screen_ui_scale():
+    screen = QApplication.primaryScreen()
+    if screen is None:
+        return 1.0
+    geometry = screen.availableGeometry()
+    return min(geometry.width() / 1920.0, geometry.height() / 1080.0)
+
 LANGUAGES = [
     ("简体中文", "zh-CN"), ("繁體中文", "zh-TW"), ("English", "en"),
     ("日本語", "ja"), ("한국어", "ko"), ("Français", "fr"),
@@ -30,9 +37,9 @@ LANGUAGES = [
 ]
 
 TRANSLATIONS = {
-    "zh-CN": {"title":"待办事项", "placeholder":"添加待办事项", "add":"添加待办", "empty":"暂无待办事项", "done":"完成待办", "delete":"删除待办", "delete_q":"彻底删除本待办？", "confirm":"确认", "cancel":"取消", "settings":"设置", "about":"关于", "exit":"退出", "exit_q":"是否确定退出", "startup":"检查和设置启动项", "language":"更改语言：", "version":"当前版本：v1.0", "release":"软件发布页", "close":"关闭", "developer":"VoidToDoList 由 bohangyang 开发", "description":"极简的工作待办事项助手", "email":"作者邮箱："},
+    "zh-CN": {"title":"待办事项", "placeholder":"添加待办事项", "add":"添加待办", "empty":"暂无待办事项", "done":"完成待办", "delete":"删除待办", "delete_q":"彻底删除本待办？", "confirm":"确认", "cancel":"取消", "settings":"设置", "about":"关于", "exit":"退出", "exit_q":"是否确定退出", "startup":"检查和设置启动项", "language":"更改语言：", "mode":"显示模式：", "fixed":"固定模式", "drawer":"抽屉模式", "opacity":"不透明度：", "drawer_open":"<< 显示待办事项", "drawer_close":">> 隐藏待办事项", "version":"当前版本：v1.1", "release":"软件发布页", "close":"关闭", "developer":"VoidToDoList 由 bohangyang 开发", "description":"极简的工作待办事项助手", "email":"作者邮箱："},
     "zh-TW": {"title":"待辦事項", "placeholder":"新增待辦事項", "add":"新增待辦", "empty":"目前沒有待辦事項", "done":"完成待辦", "delete":"刪除待辦", "delete_q":"徹底刪除這項待辦？", "confirm":"確認", "cancel":"取消", "settings":"設定", "about":"關於", "exit":"退出", "exit_q":"是否確定退出", "startup":"檢查和設定啟動項", "language":"更改語言：", "version":"目前版本：v1.0", "release":"軟體發布頁", "close":"關閉", "developer":"VoidToDoList 由 bohangyang 開發", "description":"極簡的工作待辦事項助手", "email":"作者信箱："},
-    "en": {"title":"To-Do List", "placeholder":"Add a task", "add":"Add task", "empty":"No tasks", "done":"Complete task", "delete":"Delete task", "delete_q":"Delete this task permanently?", "confirm":"Confirm", "cancel":"Cancel", "settings":"Settings", "about":"About", "exit":"Exit", "exit_q":"Are you sure you want to exit?", "startup":"Check and set startup", "language":"Change language:", "version":"Current version: v1.0", "release":"Release page", "close":"Close", "developer":"VoidToDoList developed by bohangyang", "description":"A minimal work to-do assistant", "email":"Email: "},
+    "en": {"title":"To-Do List", "placeholder":"Add a task", "add":"Add task", "empty":"No tasks", "done":"Complete task", "delete":"Delete task", "delete_q":"Delete this task permanently?", "confirm":"Confirm", "cancel":"Cancel", "settings":"Settings", "about":"About", "exit":"Exit", "exit_q":"Are you sure you want to exit?", "startup":"Check and set startup", "language":"Change language:", "mode":"Display mode:", "fixed":"Fixed mode", "drawer":"Drawer mode", "opacity":"Opacity:", "drawer_open":"<< Show to-do list", "drawer_close":">> Hide to-do list", "version":"Current version: v1.1", "release":"Release page", "close":"Close", "developer":"VoidToDoList developed by bohangyang", "description":"A minimal work to-do assistant", "email":"Email: "},
     "ja": {"title":"ToDoリスト", "placeholder":"タスクを追加", "add":"タスクを追加", "empty":"タスクはありません", "done":"タスクを完了", "delete":"タスクを削除", "delete_q":"このタスクを完全に削除しますか？", "confirm":"確認", "cancel":"キャンセル", "settings":"設定", "about":"概要", "exit":"終了", "exit_q":"終了してもよろしいですか？", "startup":"スタートアップを確認・設定", "language":"言語を変更：", "version":"現在のバージョン：v1.0", "release":"リリースページ", "close":"閉じる", "developer":"VoidToDoList 開発者 bohangyang", "description":"シンプルな仕事用ToDoアシスタント", "email":"メール："},
     "ko": {"title":"할 일 목록", "placeholder":"할 일 추가", "add":"할 일 추가", "empty":"할 일이 없습니다", "done":"완료", "delete":"삭제", "delete_q":"이 할 일을 완전히 삭제할까요?", "confirm":"확인", "cancel":"취소", "settings":"설정", "about":"정보", "exit":"종료", "exit_q":"종료하시겠습니까?", "startup":"시작 항목 확인 및 설정", "language":"언어 변경:", "version":"현재 버전: v1.0", "release":"릴리스 페이지", "close":"닫기", "developer":"VoidToDoList 개발자 bohangyang", "description":"간단한 업무 할 일 도우미", "email":"이메일: "},
     "fr": {"title":"Liste de tâches", "placeholder":"Ajouter une tâche", "add":"Ajouter", "empty":"Aucune tâche", "done":"Terminer", "delete":"Supprimer", "delete_q":"Supprimer définitivement cette tâche ?", "confirm":"Confirmer", "cancel":"Annuler", "settings":"Paramètres", "about":"À propos", "exit":"Quitter", "exit_q":"Voulez-vous vraiment quitter ?", "startup":"Vérifier et configurer le démarrage", "language":"Changer de langue :", "version":"Version actuelle : v1.0", "release":"Page de publication", "close":"Fermer", "developer":"VoidToDoList développé par bohangyang", "description":"Un assistant de tâches professionnel minimaliste", "email":"E-mail : "},
@@ -49,13 +56,41 @@ TRANSLATIONS = {
     "ar": {"title":"قائمة المهام", "placeholder":"إضافة مهمة", "add":"إضافة", "empty":"لا توجد مهام", "done":"إكمال المهمة", "delete":"حذف المهمة", "delete_q":"هل تريد حذف هذه المهمة نهائياً؟", "confirm":"تأكيد", "cancel":"إلغاء", "settings":"الإعدادات", "about":"حول", "exit":"خروج", "exit_q":"هل أنت متأكد من الخروج؟", "startup":"فحص إعداد بدء التشغيل", "language":"تغيير اللغة:", "version":"الإصدار الحالي: v1.0", "release":"صفحة الإصدار", "close":"إغلاق", "developer":"تم تطوير VoidToDoList بواسطة bohangyang", "description":"مساعد مهام عمل بسيط", "email":"البريد الإلكتروني: "},
 }
 
+DRAWER_LABELS = {
+    "zh-CN": ("<< 显示待办事项", ">> 隐藏待办事项"), "zh-TW": ("<< 顯示待辦事項", ">> 隱藏待辦事項"),
+    "en": ("<< Show to-do list", ">> Hide to-do list"), "ja": ("<< ToDoを表示", ">> ToDoを隠す"),
+    "ko": ("<< 할 일 표시", ">> 할 일 숨기기"), "fr": ("<< Afficher les tâches", ">> Masquer les tâches"),
+    "de": ("<< Aufgaben anzeigen", ">> Aufgaben ausblenden"), "es": ("<< Mostrar tareas", ">> Ocultar tareas"),
+    "pt": ("<< Mostrar tarefas", ">> Ocultar tarefas"), "it": ("<< Mostra attività", ">> Nascondi attività"),
+    "ru": ("<< Показать задачи", ">> Скрыть задачи"), "th": ("<< แสดงงาน", ">> ซ่อนงาน"),
+    "ms": ("<< Tunjuk tugasan", ">> Sembunyi tugasan"), "id": ("<< Tampilkan tugas", ">> Sembunyikan tugas"),
+    "vi": ("<< Hiện công việc", ">> Ẩn công việc"), "hi": ("<< कार्य दिखाएं", ">> कार्य छिपाएं"),
+    "ar": (">> إظهار المهام", "<< إخفاء المهام"),
+}
+
+LATIN_DRAWER_LANGUAGES = {"en", "fr", "de", "es", "pt", "it", "ms", "id", "vi"}
+
+MODE_LABELS = {
+    "zh-CN": ("显示模式：", "固定模式", "抽屉模式"), "zh-TW": ("顯示模式：", "固定模式", "抽屜模式"),
+    "en": ("Display mode:", "Fixed mode", "Drawer mode"), "ja": ("表示モード：", "固定モード", "ドロワーモード"),
+    "ko": ("표시 모드:", "고정 모드", "서랍 모드"), "fr": ("Mode d'affichage :", "Mode fixe", "Mode tiroir"),
+    "de": ("Anzeigemodus:", "Fester Modus", "Schubladenmodus"), "es": ("Modo de visualización:", "Modo fijo", "Modo cajón"),
+    "pt": ("Modo de exibição:", "Modo fixo", "Modo gaveta"), "it": ("Modalità di visualizzazione:", "Modalità fissa", "Modalità cassetto"),
+    "ru": ("Режим отображения:", "Фиксированный режим", "Режим выдвижной панели"), "th": ("โหมดการแสดงผล:", "โหมดคงที่", "โหมดลิ้นชัก"),
+    "ms": ("Mod paparan:", "Mod tetap", "Mod laci"), "id": ("Mode tampilan:", "Mode tetap", "Mode laci"),
+    "vi": ("Chế độ hiển thị:", "Chế độ cố định", "Chế độ ngăn kéo"), "hi": ("प्रदर्शन मोड:", "स्थिर मोड", "ड्रॉअर मोड"),
+    "ar": ("وضع العرض:", "الوضع الثابت", "وضع الدرج"),
+}
+OPACITY_LABELS = {"zh-CN":"不透明度：", "zh-TW":"不透明度：", "en":"Opacity:", "ja":"不透明度：", "ko":"불투명도:", "fr":"Opacité :", "de":"Deckkraft:", "es":"Opacidad:", "pt":"Opacidade:", "it":"Opacità:", "ru":"Непрозрачность:", "th":"ความทึบแสง:", "ms":"Kelegapan:", "id":"Opasitas:", "vi":"Độ mờ:", "hi":"अपारदर्शिता:", "ar":"العتامة:"}
+
 
 class CompletionButton(QPushButton):
     """Transparent completion control drawn consistently at any DPI."""
-    def __init__(self, completed):
+    def __init__(self, completed, scale=1.0):
         super().__init__()
         self.completed = completed
-        self.setFixedSize(42, 42)
+        self.scale = scale
+        self.setFixedSize(round(42 * scale), round(42 * scale))
         self.setCursor(Qt.PointingHandCursor)
         self.setStyleSheet("QPushButton { background: transparent; border: none; } QPushButton:hover { background: rgba(255,255,255,30); } QPushButton:pressed { background: rgba(255,255,255,50); }")
 
@@ -64,10 +99,36 @@ class CompletionButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(QColor("white"))
-        painter.drawRect(12, 12, 17, 17)
+        offset, size = round(12 * self.scale), round(17 * self.scale)
+        painter.drawRect(offset, offset, size, size)
         if self.completed:
-            painter.drawLine(15, 15, 26, 26)
-            painter.drawLine(26, 15, 15, 26)
+            painter.drawLine(round(15 * self.scale), round(15 * self.scale), round(26 * self.scale), round(26 * self.scale))
+            painter.drawLine(round(26 * self.scale), round(15 * self.scale), round(15 * self.scale), round(26 * self.scale))
+
+
+class TodoRow(QFrame):
+    """A task row that grows to fit wrapped text."""
+    def __init__(self, scale=1.0):
+        super().__init__()
+        self.scale = scale
+        self._label = None
+        self.setMinimumHeight(round(46 * scale))
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+
+    def set_text_label(self, label):
+        self._label = label
+        QTimer.singleShot(0, self.update_height)
+
+    def update_height(self):
+        if self._label is None or self._label.width() <= 0 or self.layout() is None:
+            return
+        text_height = self._label.heightForWidth(self._label.width())
+        margins = self.layout().contentsMargins()
+        self.setMinimumHeight(max(round(46 * self.scale), text_height + margins.top() + margins.bottom()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        QTimer.singleShot(0, self.update_height)
 
 
 class TodoDesktop(QWidget):
@@ -76,15 +137,24 @@ class TodoDesktop(QWidget):
     def __init__(self):
         super().__init__()
         self.language = self.load_language()
+        self.display_mode = self.load_display_mode()
+        self.opacity = self.load_opacity()
+        self.ui_scale = screen_ui_scale()
         QApplication.instance().setLayoutDirection(Qt.RightToLeft if self.language == "ar" else Qt.LeftToRight)
         self.todos = self.load_todos()
         self._allow_close = False
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnBottomHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.setFixedSize(WIDTH, HEIGHT)
+        self.setFixedSize(round(WIDTH * self.ui_scale), round(HEIGHT * self.ui_scale))
         self.build_ui()
+        self.apply_text_direction()
+        self.apply_opacity_styles()
         self.position_window()
         self.create_tray_icon()
+        if self.display_mode == "drawer":
+            self.setup_drawer_mode()
+        else:
+            self.hide_drawer_button()
 
     def load_language(self):
         # Language is kept separately so changing it never touches task data.
@@ -95,25 +165,59 @@ class TodoDesktop(QWidget):
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return "zh-CN"
 
+    def load_display_mode(self):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as source:
+                return "drawer" if json.load(source).get("display_mode") == "drawer" else "fixed"
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return "fixed"
+
+    def load_opacity(self):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as source:
+                value = int(json.load(source).get("opacity", 5))
+            return value if value in (5, 25, 50, 75, 95) else 5
+        except (FileNotFoundError, json.JSONDecodeError, OSError, ValueError, TypeError):
+            return 5
+
     def save_language(self):
         try:
             with open(SETTINGS_FILE + ".tmp", "w", encoding="utf-8") as target:
-                json.dump({"language": self.language}, target, ensure_ascii=False, indent=2)
+                json.dump({"language": self.language, "display_mode": self.display_mode, "opacity": self.opacity}, target, ensure_ascii=False, indent=2)
             os.replace(SETTINGS_FILE + ".tmp", SETTINGS_FILE)
         except OSError:
             pass
 
     def tr(self, key):
-        return TRANSLATIONS[self.language].get(key, TRANSLATIONS["en"].get(key, key))
+        if key in ("drawer_open", "drawer_close"):
+            text = DRAWER_LABELS.get(self.language, DRAWER_LABELS["en"])[0 if key == "drawer_open" else 1]
+            if self.language in LATIN_DRAWER_LANGUAGES:
+                text = " ".join(word.capitalize() for word in text.split(" "))
+                text = text.replace("To-do", "To-Do")
+            return text
+        if key == "opacity":
+            return OPACITY_LABELS.get(self.language, OPACITY_LABELS["en"])
+        if key in ("mode", "fixed", "drawer"):
+            values = MODE_LABELS.get(self.language, MODE_LABELS["en"])
+            return values[{"mode": 0, "fixed": 1, "drawer": 2}[key]]
+        text = TRANSLATIONS[self.language].get(key, TRANSLATIONS["en"].get(key, key))
+        return text.replace("v1.0", "v1.1")
 
     def set_language(self, code):
         # Update all currently visible surfaces immediately, including RTL mode.
         self.language = code
         self.save_language()
         QApplication.instance().setLayoutDirection(Qt.RightToLeft if code == "ar" else Qt.LeftToRight)
+        self.apply_text_direction()
         self.title_label.setText(self.tr("title"))
         self.entry.setPlaceholderText(self.tr("placeholder"))
         self.add_button.setToolTip(self.tr("add"))
+        if hasattr(self, "drawer_button"):
+            if self.display_mode == "drawer":
+                self.update_drawer_button(self.isVisible())
+                self.position_drawer_button()
+        if hasattr(self, "settings_opacity_label"):
+            self.settings_opacity_label.setText(self.tr("opacity"))
         self.tray.setToolTip("VoidToDoList")
         self.tray_menu.actions()[0].setText(self.tr("settings"))
         self.tray_menu.actions()[1].setText(self.tr("about"))
@@ -121,10 +225,131 @@ class TodoDesktop(QWidget):
         if hasattr(self, "settings_startup"):
             self.settings_startup.setText(self.tr("startup"))
             self.settings_language_label.setText(self.tr("language"))
+            self.settings_mode_label.setText(self.tr("mode"))
+            self.settings_mode.setItemText(0, self.tr("fixed"))
+            self.settings_mode.setItemText(1, self.tr("drawer"))
             self.settings_version.setText(self.tr("version"))
             self.settings_release.setText(f'<a href="https://github.com/cnybh/VoidToDoList">{self.tr("release")}</a>')
             self.settings_close.setText(self.tr("close"))
         self.refresh_list()
+
+    def apply_text_direction(self):
+        rtl = self.language == "ar"
+        direction = Qt.RightToLeft if rtl else Qt.LeftToRight
+        alignment = Qt.AlignRight if rtl else Qt.AlignLeft
+        self.setLayoutDirection(direction)
+        self.title_label.setLayoutDirection(direction)
+        self.title_label.setAlignment(alignment | Qt.AlignVCenter)
+        self.entry.setLayoutDirection(direction)
+        self.entry.setAlignment(alignment | Qt.AlignVCenter)
+        self.add_button.setLayoutDirection(direction)
+        if hasattr(self, "drawer_button"):
+            self.drawer_button.setLayoutDirection(direction)
+        for row_index in range(self.list_layout.count()):
+            row = self.list_layout.itemAt(row_index).widget()
+            if row is None or row.layout() is None:
+                continue
+            for child_index in range(row.layout().count()):
+                child = row.layout().itemAt(child_index).widget()
+                if isinstance(child, QLabel):
+                    child.setLayoutDirection(direction)
+                    child.setAlignment(alignment | Qt.AlignVCenter)
+
+    def set_display_mode(self, mode):
+        self.display_mode = mode
+        self.save_language()
+        if mode == "drawer":
+            self.setup_drawer_mode()
+        else:
+            self.hide_drawer_button()
+            self.show()
+            self.position_window()
+
+    def set_opacity(self, value):
+        self.opacity = int(value)
+        self.save_language()
+        self.apply_opacity_styles()
+
+    def apply_opacity_styles(self):
+        alpha = round(255 * self.opacity / 100)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        text_color = "black" if self.opacity > 50 else "white"
+        self.entry.setStyleSheet(f"QLineEdit {{ background: rgba(255,255,255,{alpha}); border: none; color: {text_color}; padding: {max(3, round(8 * self.ui_scale))}px {max(4, round(10 * self.ui_scale))}px; }}")
+        self.add_button.setStyleSheet(f"QPushButton {{ background: rgba(255,255,255,{alpha}); border: none; color: {text_color}; }} QPushButton:hover {{ background: rgba(255,255,255,{min(255, alpha + 12)}); }} QPushButton:pressed {{ background: rgba(255,255,255,{min(255, alpha + 20)}); }}")
+        if hasattr(self, "drawer_button"):
+            self.drawer_button.setStyleSheet(f"QPushButton {{ background: rgba(0,0,0,{alpha}); border: none; outline: none; color: white; padding: 0; margin: 0; }} QPushButton:hover {{ background: rgba(0,0,0,{alpha}); }}")
+        self.update()
+
+    def hide_drawer_button(self):
+        """Ensure fixed mode never leaves a drawer control visible or animating."""
+        for name in ("drawer_button_animation", "drawer_animation"):
+            animation = getattr(self, name, None)
+            if animation is not None:
+                animation.stop()
+        button = getattr(self, "drawer_button", None)
+        if button is not None:
+            button.hide()
+
+    def setup_drawer_mode(self):
+        if self.display_mode != "drawer":
+            self.hide_drawer_button()
+            return
+        self.hide()
+        if not hasattr(self, "drawer_button"):
+            self.drawer_button = QPushButton()
+            self.drawer_button.clicked.connect(self.toggle_drawer)
+            self.drawer_button.setWindowFlags(Qt.FramelessWindowHint | Qt.Tool | Qt.WindowStaysOnBottomHint)
+            self.drawer_button.setAttribute(Qt.WA_TranslucentBackground, True)
+            drawer_font = QFont(self.font())
+            drawer_font.setPointSizeF(max(8.0, 15.0 * self.ui_scale))
+            self.drawer_button.setFont(drawer_font)
+            self.drawer_button.setCursor(Qt.PointingHandCursor)
+            # 95% transparent black means only about 5% opacity (alpha 13).
+            self.drawer_button.setStyleSheet("QPushButton { background: rgba(0,0,0,13); border: none; outline: none; color: white; padding: 0; margin: 0; } QPushButton:hover { background: rgba(0,0,0,13); }")
+        self.update_drawer_button(False)
+        self.apply_opacity_styles()
+        self.drawer_button.show()
+        self.position_drawer_button()
+
+    def position_drawer_button(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        x = self.x() - self.drawer_button.width() if self.isVisible() else screen.right() - self.drawer_button.width() + 1
+        self.drawer_button.move(x, screen.top())
+
+    def update_drawer_button(self, expanded):
+        text = self.tr("drawer_close" if expanded else "drawer_open")
+        text = f"   {text}   "
+        self.drawer_button.setText(text)
+        width = QFontMetrics(self.drawer_button.font()).horizontalAdvance(text) + round(20 * self.ui_scale)
+        self.drawer_button.setFixedSize(width, round(42 * self.ui_scale))
+
+    def toggle_drawer(self):
+        screen = QApplication.primaryScreen().availableGeometry()
+        target_x = screen.right() - self.width() + 1
+        if not self.isVisible():
+            self.move(screen.right() + 1, screen.top())
+            self.show()
+            self.update_drawer_button(True)
+            self.animate_drawer(self.x(), target_x)
+        else:
+            self.update_drawer_button(False)
+            self.animate_drawer(self.x(), screen.right() + 1, hide_after=True)
+
+    def animate_drawer(self, start_x, end_x, hide_after=False):
+        self.drawer_animation = QPropertyAnimation(self, b"pos", self)
+        self.drawer_animation.setDuration(1000)
+        self.drawer_animation.setStartValue(QPoint(start_x, self.y()))
+        self.drawer_animation.setEndValue(QPoint(end_x, self.y()))
+        self.drawer_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self.drawer_button_animation = QPropertyAnimation(self.drawer_button, b"pos", self)
+        self.drawer_button_animation.setDuration(1000)
+        self.drawer_button_animation.setStartValue(QPoint(start_x - self.drawer_button.width(), self.y()))
+        self.drawer_button_animation.setEndValue(QPoint(end_x - self.drawer_button.width(), self.y()))
+        self.drawer_button_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        if hide_after:
+            self.drawer_animation.finished.connect(self.hide)
+        self.drawer_animation.start()
+        self.drawer_button_animation.start()
 
     def load_todos(self):
         # Completed tasks are retained for the current day and removed next day.
@@ -151,7 +376,7 @@ class TodoDesktop(QWidget):
         # The main window is transparent; only the input field has a visible fill.
         self.setStyleSheet("""
             QWidget { color: white; font-family: 'Microsoft YaHei UI'; }
-            QLineEdit { background: rgba(255,255,255,26); border: none; color: white; font-size: 12pt; padding: 8px 10px; }
+            QLineEdit { background: rgba(255,255,255,26); border: none; color: white; }
             QLineEdit:focus { background: rgba(255,255,255,38); }
             QScrollArea, QScrollArea::viewport { border: none; background: transparent; }
             QScrollBar:vertical { background: transparent; width: 5px; }
@@ -159,10 +384,15 @@ class TodoDesktop(QWidget):
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
         """)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(22, 22, 22, 22)
-        outer.setSpacing(12)
+        s = self.ui_scale
+        outer.setContentsMargins(*(round(v * s) for v in (22, 22, 22, 22)))
+        outer.setSpacing(round(12 * s))
         title = QLabel(self.tr("title"))
-        title.setStyleSheet("font-size: 16pt; font-weight: 600; background: transparent;")
+        title_font = QFont(title.font())
+        title_font.setPointSizeF(max(8.0, 16.0 * s))
+        title_font.setWeight(QFont.Weight.DemiBold)
+        title.setFont(title_font)
+        title.setStyleSheet("background: transparent;")
         self.title_label = title
         outer.addWidget(title)
         self.scroll = QScrollArea()
@@ -175,18 +405,22 @@ class TodoDesktop(QWidget):
         self.list_widget.setStyleSheet("background: transparent;")
         self.list_layout = QVBoxLayout(self.list_widget)
         self.list_layout.setContentsMargins(0, 0, 0, 0)
-        self.list_layout.setSpacing(5)
+        self.list_layout.setSpacing(round(5 * s))
         self.list_layout.setAlignment(Qt.AlignTop)
         self.scroll.setWidget(self.list_widget)
         outer.addWidget(self.scroll, 1)
         add_row = QHBoxLayout()
-        add_row.setSpacing(8)
+        add_row.setSpacing(round(8 * s))
         self.entry = QLineEdit()
         self.entry.setPlaceholderText(self.tr("placeholder"))
-        self.entry.setMinimumHeight(42)
+        self.entry.setMinimumHeight(round(42 * s))
+        entry_font = QFont(self.entry.font())
+        entry_font.setPointSizeF(max(8.0, 12.0 * s))
+        self.entry.setFont(entry_font)
+        self.entry.setStyleSheet(f"QLineEdit {{ background: rgba(255,255,255,26); border: none; color: white; padding: {max(3, round(8 * s))}px {max(4, round(10 * s))}px; }}")
         self.entry.returnPressed.connect(self.add_todo)
         add_row.addWidget(self.entry, 1)
-        add_button = self.action_button("+", 48)
+        add_button = self.action_button("+", round(48 * s))
         add_button.setToolTip(self.tr("add"))
         add_button.clicked.connect(self.add_todo)
         self.add_button = add_button
@@ -196,10 +430,13 @@ class TodoDesktop(QWidget):
 
     def action_button(self, text, width, transparent=False):
         button = QPushButton(text)
-        button.setFixedSize(width, 42)
+        button.setFixedSize(width, round(42 * self.ui_scale))
         button.setCursor(Qt.PointingHandCursor)
         background = "transparent" if transparent else "rgba(255,255,255,26)"
-        button.setStyleSheet(f"QPushButton {{ background: {background}; border: none; color: white; font-size: 20pt; }} QPushButton:hover {{ background: rgba(255,255,255,30); }} QPushButton:pressed {{ background: rgba(255,255,255,50); }}")
+        button_font = QFont(button.font())
+        button_font.setPointSizeF(max(8.0, 20.0 * self.ui_scale))
+        button.setFont(button_font)
+        button.setStyleSheet(f"QPushButton {{ background: {background}; border: none; color: white; }} QPushButton:hover {{ background: rgba(255,255,255,30); }} QPushButton:pressed {{ background: rgba(255,255,255,50); }}")
         return button
 
     def refresh_list(self):
@@ -212,29 +449,33 @@ class TodoDesktop(QWidget):
             empty = QLabel(self.tr("empty"))
             empty.setStyleSheet("color: rgba(255,255,255,170); padding: 8px 0;")
             self.list_layout.addWidget(empty)
+            self.apply_text_direction()
             return
         for index, todo in enumerate(self.todos):
-            row = QFrame()
-            row.setMinimumHeight(46)
-            row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            row = TodoRow(self.ui_scale)
             row.setStyleSheet("background: transparent; border: none;")
             layout = QHBoxLayout(row)
-            layout.setContentsMargins(8, 2, 3, 2)
-            layout.setSpacing(6)
-            check = CompletionButton(todo.get("done", False))
+            layout.setContentsMargins(*(round(v * self.ui_scale) for v in (8, 2, 3, 2)))
+            layout.setSpacing(round(6 * self.ui_scale))
+            check = CompletionButton(todo.get("done", False), self.ui_scale)
             check.setToolTip(self.tr("done"))
             check.clicked.connect(lambda _checked=False, i=index: self.toggle_done(i))
             layout.addWidget(check)
             label = QLabel(todo.get("text", ""))
             label.setWordWrap(True)
             label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-            label.setStyleSheet("font-size: 12pt; color: rgba(255,255,255,145); text-decoration: line-through;" if todo.get("done") else "font-size: 12pt; color: white;")
+            label_font = QFont(label.font())
+            label_font.setPointSizeF(max(8.0, 12.0 * self.ui_scale))
+            label.setFont(label_font)
+            label.setStyleSheet("color: rgba(255,255,255,145); text-decoration: line-through;" if todo.get("done") else "color: white;")
             layout.addWidget(label, 1)
+            row.set_text_label(label)
             remove = self.action_button("×", 42, transparent=True)
             remove.setToolTip(self.tr("delete"))
             remove.clicked.connect(lambda _checked=False, i=index: self.delete_todo(i))
             layout.addWidget(remove)
             self.list_layout.addWidget(row)
+        self.apply_text_direction()
 
     def add_todo(self):
         text = self.entry.text().strip()
@@ -271,7 +512,8 @@ class TodoDesktop(QWidget):
 
     def position_window(self):
         screen = QApplication.primaryScreen().availableGeometry()
-        self.move(screen.x() + int(screen.width() * .75 - WIDTH / 2), screen.y() + int(screen.height() * .5 - HEIGHT / 2))
+        width, height = WIDTH * self.ui_scale, HEIGHT * self.ui_scale
+        self.move(screen.x() + int(screen.width() * .75 - width / 2), screen.y() + int(screen.height() * .5 - height / 2))
 
     def create_tray_icon(self):
         # The tray is the only supported way to reach settings or exit.
@@ -382,6 +624,29 @@ class TodoDesktop(QWidget):
         language.currentIndexChanged.connect(lambda index: self.set_language(LANGUAGES[index][1]))
         language_row.addWidget(language)
         layout.addLayout(language_row)
+        mode_row = QHBoxLayout()
+        mode_label = QLabel(self.tr("mode"))
+        self.settings_mode_label = mode_label
+        mode_row.addWidget(mode_label)
+        mode = QComboBox()
+        mode.addItems([self.tr("fixed"), self.tr("drawer")])
+        mode.setCurrentIndex(1 if self.display_mode == "drawer" else 0)
+        mode.currentIndexChanged.connect(lambda index: self.set_display_mode("drawer" if index else "fixed"))
+        self.settings_mode = mode
+        mode_row.addWidget(mode)
+        layout.addLayout(mode_row)
+        opacity_row = QHBoxLayout()
+        opacity_label = QLabel(self.tr("opacity"))
+        self.settings_opacity_label = opacity_label
+        opacity_row.addWidget(opacity_label)
+        opacity = QComboBox()
+        opacity_values = (5, 25, 50, 75, 95)
+        opacity.addItems([f"{value}%" for value in opacity_values])
+        opacity.setCurrentIndex(opacity_values.index(self.opacity))
+        opacity.currentIndexChanged.connect(lambda index: self.set_opacity(opacity_values[index]))
+        self.settings_opacity = opacity
+        opacity_row.addWidget(opacity)
+        layout.addLayout(opacity_row)
         version_row = QHBoxLayout()
         version_row.setSpacing(12)
         version_label = QLabel(self.tr("version"))
@@ -404,7 +669,7 @@ class TodoDesktop(QWidget):
         dialog.exec()
 
     def clear_settings_refs(self):
-        for name in ("settings_startup", "settings_language_label", "settings_version", "settings_release", "settings_close"):
+        for name in ("settings_startup", "settings_language_label", "settings_mode_label", "settings_mode", "settings_opacity_label", "settings_opacity", "settings_version", "settings_release", "settings_close"):
             if hasattr(self, name):
                 delattr(self, name)
 
@@ -465,7 +730,7 @@ class TodoDesktop(QWidget):
             event.ignore()
 
     def paintEvent(self, event):
-        QPainter(self).fillRect(self.rect(), QColor(0, 0, 0, 13))
+        QPainter(self).fillRect(self.rect(), QColor(0, 0, 0, round(255 * self.opacity / 100)))
 
 
 def main():
@@ -476,7 +741,10 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     window = TodoDesktop()
-    window.show()
+    # TodoDesktop has already applied the persisted display mode.  Do not
+    # unconditionally show the panel here, otherwise drawer mode is overridden.
+    if window.display_mode == "fixed":
+        window.show()
     sys.exit(app.exec())
 
 
