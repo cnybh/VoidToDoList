@@ -14,7 +14,7 @@ Minimalist work to-do list assistant
 
 ------
 
-它是什么
+### 它是什么
 
 VoidToDoList 是一个常驻在桌面上的待办清单。它不像普通软件那样占据一个窗口和任务栏位置，而是把自己"贴"在桌面上，安静地待在所有窗口的后面。你工作时它不会挡住任何东西，需要记录点什么的时候，它就在那里。
 
@@ -76,8 +76,6 @@ VoidToDoList 是一个常驻在桌面上的待办清单。它不像普通软件�
 作者：bohangyang ｜ 邮箱：bohangyang985@hotmail.com ｜ 更新发布页：<https://github.com/cnybh/VoidToDoList>
 
 ---
-
-## English Version
 
 ### What It Is
 
